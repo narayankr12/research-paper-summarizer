@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digest &mdash; a reading room for papers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root{
+    --paper:#E9E4D3;
+    --paper-card:#F7F4EA;
+    --ink:#1E2A22;
+    --ink-soft:#55645A;
+    --rule:#C7BFA6;
+    --stamp:#A63A2E;
+    --stamp-soft:#C97764;
+    --highlight:#D9B23C;
+    --teal:#33635C;
+    --teal-soft:#dfe8e3;
+    --input-bg:#fff;
+    --glow:rgba(255,255,255,.5);
+    --bg-hi:#f1ecdc;
+    --shadow-ink:rgba(30,42,34,.4);
+    --shadow-ink2:rgba(30,42,34,.1);
+    --paper-edge:rgba(30,42,34,.15);
+  }
+  [data-theme="night"]{
+    --paper:#171f1b;
+    --paper-card:#212b25;
+    --ink:#EFEAD9;
+    --ink-soft:#9aa89e;
+    --rule:#3a463e;
+    --stamp:#e0725f;
+    --stamp-soft:#c97764;
+    --highlight:#e8c25e;
+    --teal:#7fb8ac;
+    --teal-soft:#243430;
+    --input-bg:#0f1512;
+    --glow:rgba(255,255,255,.06);
+    --bg-hi:#1c2621;
+    --shadow-ink:rgba(0,0,0,.55);
+    --shadow-ink2:rgba(0,0,0,.35);
+    --paper-edge:rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;}
+  .app{
+    background:radial-gradient(ellipse 900px 500px at 50% -10%, var(--bg-hi) 0%, var(--paper) 55%);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    padding:56px 24px 96px;
+    position:relative;
+    overflow:hidden;
+    transition:background .5s ease, color .5s ease;
+  }
+  .wrap{max-width:860px;margin:0 auto;position:relative;z-index:2;}
+
+  /* ---- ambient desk scraps (3d parallax) ---- */
+  .scraps{position:absolute;inset:0;z-index:1;pointer-events:none;perspective:1200px;}
+  .scrap{
+    position:absolute;
+    opacity:.5;
+    filter:drop-shadow(0 10px 14px var(--shadow-ink2));
+    transform-style:preserve-3d;
+    will-change:transform;
+    transition:transform .25s cubic-bezier(.2,.7,.3,1), opacity .5s ease;
+  }
+  .scrap svg{display:block;}
+
+  /* ---- lamp / night toggle ---- */
+  .lamp-toggle{
+    position:absolute;
+    top:56px; right:24px;
+    display:flex; align-items:center; gap:8px;
+    z-index:3;
+  }
+  .lamp-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .lamp-switch{
+    position:relative;
+    width:52px; height:26px;
+    border-radius:20px;
+    border:1px solid var(--rule);
+    background:linear-gradient(to bottom, var(--paper-card), var(--paper));
+    cursor:pointer;
+    box-shadow:inset 0 2px 5px var(--shadow-ink2), inset 0 -1px 0 var(--glow);
+    perspective:200px;
+    transition:background .4s ease, border-color .4s ease;
+  }
+  .lamp-knob{
+    position:absolute;
+    top:2px; left:2px;
+    width:20px; height:20px;
+    border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, var(--highlight), var(--stamp) 85%);
+    box-shadow:0 2px 5px var(--shadow-ink), 0 0 0 1px var(--paper-edge);
+    transform:translateX(0) rotateY(0deg);
+    transition:transform .35s cubic-bezier(.34,1.56,.64,1), background .4s ease;
+  }
+  [data-theme="night"] .lamp-knob{
+    transform:translateX(26px) rotateY(200deg);
+    background:radial-gradient(circle at 35% 30%, #fff8e0, var(--teal) 85%);
+  }
+  @media(max-width:600px){
+    .lamp-toggle{position:static;justify-content:flex-end;margin-bottom:12px;}
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--teal);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{content:"";width:22px;height:1px;background:var(--teal);display:inline-block;}
+  h1{
+    font-family:'Spectral', serif;
+    font-weight:500;
+    font-size:44px;
+    line-height:1.12;
+    margin:18px 0 14px;
+    max-width:15ch;
+    text-shadow:0 1px 0 rgba(255,255,255,.5);
+  }
+  h1 em{font-style:italic;color:var(--stamp);}
+  .sub{
+    font-size:16.5px;
+    color:var(--ink-soft);
+    max-width:52ch;
+    line-height:1.6;
+    margin:0 0 40px;
+  }
+
+  /* ---- intake card ---- */
+  .intake-holder{perspective:1400px;}
+  .intake{
+    background:var(--paper-card);
+    border:1.5px dashed var(--rule);
+    border-radius:4px;
+    padding:28px;
+    position:relative;
+    transform-style:preserve-3d;
+    box-shadow:
+      0 1px 0 var(--glow) inset,
+      0 14px 30px -16px var(--shadow-ink),
+      0 3px 6px var(--shadow-ink2);
+    transition:transform .12s ease-out, box-shadow .3s ease;
+  }
+  .intake.lifted{
+    box-shadow:
+      0 1px 0 var(--glow) inset,
+      0 34px 46px -20px var(--shadow-ink),
+      0 6px 12px var(--shadow-ink2);
+  }
+  .intake::before{
+    content:"submission slip";
+    position:absolute;
+    top:-11px;
+    left:24px;
+    background:var(--paper);
+    padding:0 10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .tabs{display:flex;gap:6px;margin-bottom:16px;}
+  .tab{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    letter-spacing:.03em;
+    padding:8px 14px;
+    background:transparent;
+    border:1px solid var(--rule);
+    border-radius:3px;
+    color:var(--ink-soft);
+    cursor:pointer;
+    box-shadow:inset 0 1px 3px rgba(30,42,34,.1);
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .tab.active{
+    background:var(--ink);
+    color:var(--paper-card);
+    border-color:var(--ink);
+    box-shadow:0 3px 8px -2px rgba(30,42,34,.5), 0 1px 0 rgba(255,255,255,.15) inset;
+    transform:translateY(-1px);
+  }
+  textarea{
+    width:100%;
+    min-height:180px;
+    resize:vertical;
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:14.5px;
+    line-height:1.6;
+    padding:14px;
+    border:1px solid var(--rule);
+    border-radius:3px;
+    background:var(--input-bg);
+    color:var(--ink);
+    box-shadow:inset 0 2px 5px rgba(30,42,34,.08);
+  }
+  textarea:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  .dropzone{
+    display:none;
+    min-height:180px;
+    border:1.5px dashed var(--rule);
+    border-radius:3px;
+    background:var(--input-bg);
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:10px;
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:14px;
+    padding:20px;
+    cursor:pointer;
+    box-shadow:inset 0 2px 5px rgba(30,42,34,.06);
+  }
+  .dropzone.drag{border-color:var(--teal);background:var(--teal-soft);}
+  .dropzone strong{color:var(--ink);font-weight:600;}
+  .filename{
+    margin-top:12px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    color:var(--teal);
+  }
+  .intake-foot{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:18px;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .count{font-size:12.5px;color:var(--ink-soft);font-family:'IBM Plex Mono', monospace;}
+  .count-note{
+    display:block;
+    font-size:11.5px;
+    color:var(--teal);
+    font-family:'IBM Plex Mono', monospace;
+    margin-top:3px;
+  }
+  .digest-btn{
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:600;
+    font-size:13.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    background:var(--ink);
+    color:var(--paper-card);
+    border:none;
+    padding:13px 26px;
+    border-radius:3px;
+    cursor:pointer;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.1) inset,
+      0 4px 0 #0f1712,
+      0 12px 20px -8px rgba(30,42,34,.55);
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .digest-btn:hover{
+    transform:translateY(-2px);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.1) inset,
+      0 6px 0 #0f1712,
+      0 16px 24px -8px rgba(30,42,34,.55);
+  }
+  .digest-btn:active{
+    transform:translateY(3px);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.1) inset,
+      0 1px 0 #0f1712,
+      0 4px 10px -6px rgba(30,42,34,.5);
+  }
+  .digest-btn:disabled{opacity:.55;cursor:progress;transform:none;box-shadow:none;}
+  .error-msg{
+    margin-top:14px;
+    font-size:13.5px;
+    color:var(--stamp);
+    border-left:2px solid var(--stamp);
+    padding-left:10px;
+  }
+
+  /* ---- api key row ---- */
+  .key-row{
+    display:none;
+    margin-top:16px;
+    padding-top:16px;
+    border-top:1px dashed var(--rule);
+    flex-direction:column;
+    gap:6px;
+  }
+  .key-row label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .key-row input{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    padding:10px 12px;
+    border:1px solid var(--rule);
+    border-radius:3px;
+    background:var(--input-bg);
+    color:var(--ink);
+    box-shadow:inset 0 2px 5px rgba(30,42,34,.08);
+  }
+  .key-row input:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  .key-hint{font-size:11.5px;color:var(--ink-soft);}
+  .key-hint a{color:var(--teal);}
+
+  /* ---- shelf ---- */
+  .shelf-section{margin-top:44px;}
+  .shelf-title{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-bottom:12px;
+  }
+  .shelf{
+    display:flex;
+    gap:18px;
+    overflow-x:auto;
+    padding:6px 6px 14px;
+    perspective:1000px;
+  }
+  .ticket{
+    flex:0 0 auto;
+    width:190px;
+    background:var(--paper-card);
+    border:1px solid var(--rule);
+    border-radius:3px;
+    padding:12px 14px;
+    cursor:pointer;
+    font-size:12.5px;
+    position:relative;
+    transform-style:preserve-3d;
+    box-shadow:
+      3px 3px 0 var(--paper),
+      3px 3px 0 1px var(--rule),
+      6px 6px 0 var(--paper),
+      6px 6px 0 1px var(--rule),
+      0 8px 16px -8px var(--shadow-ink);
+    transition:transform .15s ease, box-shadow .15s ease, opacity .25s ease;
+  }
+  .ticket:hover{
+    border-color:var(--teal);
+    transform:translateY(-3px) translateZ(6px);
+    box-shadow:
+      3px 3px 0 var(--paper),
+      3px 3px 0 1px var(--teal),
+      6px 6px 0 var(--paper),
+      6px 6px 0 1px var(--teal),
+      0 16px 24px -8px rgba(51,99,92,.35);
+  }
+  .ticket.removing{transform:translateY(-3px) rotateX(90deg); opacity:0;}
+  .ticket-close{
+    position:absolute;
+    top:-8px; right:-8px;
+    width:20px; height:20px;
+    border-radius:50%;
+    background:var(--ink);
+    color:var(--paper-card);
+    border:1px solid var(--paper);
+    font-size:12px;
+    line-height:18px;
+    text-align:center;
+    cursor:pointer;
+    opacity:0;
+    transform:scale(.6);
+    transition:opacity .15s ease, transform .15s ease, background .2s ease;
+  }
+  .ticket:hover .ticket-close{opacity:1; transform:scale(1);}
+  .ticket-close:hover{background:var(--stamp);}
+  .ticket .t-field{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--teal);
+    margin-bottom:6px;
+  }
+  .ticket .t-title{
+    font-family:'Spectral', serif;
+    font-size:14.5px;
+    line-height:1.3;
+    color:var(--ink);
+    display:-webkit-box;
+    -webkit-line-clamp:3;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
+  .shelf-empty{font-size:13px;color:var(--ink-soft);font-style:italic;}
+
+  /* ---- results ---- */
+  .results{margin-top:56px;display:none;}
+  .r-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:20px;
+    flex-wrap:wrap;
+    border-bottom:1.5px solid var(--ink);
+    padding-bottom:18px;
+    margin-bottom:22px;
+  }
+  .r-field{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--teal);
+    margin-bottom:6px;
+  }
+  .r-title{
+    font-family:'Spectral', serif;
+    font-weight:500;
+    font-size:27px;
+    line-height:1.25;
+    max-width:32ch;
+  }
+  .stamps{display:flex;gap:14px;flex-wrap:wrap;perspective:600px;}
+  .stamp{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    font-weight:600;
+    text-align:center;
+    color:var(--stamp);
+    border:2px solid var(--stamp);
+    border-radius:50%;
+    width:88px;
+    height:88px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transform:rotate(-8deg);
+    line-height:1.3;
+    padding:6px;
+    flex-shrink:0;
+    transform-style:preserve-3d;
+    cursor:default;
+    box-shadow:0 3px 8px rgba(166,58,46,.25), inset 0 1px 2px var(--glow);
+    animation:stampIn .5s cubic-bezier(.25,1.4,.4,1) both;
+  }
+  .stamp:hover{transform:rotate(-8deg) translateZ(14px) scale(1.06);}
+  .stamp:nth-child(1){animation-delay:.05s;}
+  .stamp:nth-child(2){animation-delay:.15s;}
+  .stamp:nth-child(3){animation-delay:.25s;}
+  @keyframes stampIn{
+    from{opacity:0; transform:rotate(-8deg) translateZ(-60px) scale(.5);}
+    to{opacity:1; transform:rotate(-8deg) translateZ(0) scale(1);}
+  }
+  .stamp span{display:block;}
+  .stamp .big{font-size:16px;}
+
+  .plain-summary{
+    font-family:'Spectral', serif;
+    font-size:19px;
+    line-height:1.65;
+    font-style:italic;
+    color:var(--ink);
+    background:linear-gradient(to bottom, transparent 62%, rgba(217,178,60,.42) 62%);
+    display:inline;
+    margin-bottom:34px;
+  }
+  .plain-summary-wrap{margin-bottom:38px;}
+
+  .cards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+    gap:18px;
+    margin-bottom:30px;
+    perspective:1000px;
+  }
+  .card{
+    background:var(--paper-card);
+    border:1px solid var(--rule);
+    border-radius:3px;
+    padding:20px 18px 18px;
+    position:relative;
+    transform-style:preserve-3d;
+    will-change:transform;
+    box-shadow:
+      0 1px 0 var(--glow) inset,
+      0 10px 20px -12px var(--shadow-ink),
+      0 2px 5px var(--shadow-ink2);
+    transition:transform .12s ease-out, box-shadow .2s ease;
+    animation:cardIn .5s cubic-bezier(.22,1,.36,1) both;
+  }
+  .card:nth-child(1){animation-delay:.05s;}
+  .card:nth-child(2){animation-delay:.12s;}
+  .card:nth-child(3){animation-delay:.19s;}
+  .card:nth-child(4){animation-delay:.26s;}
+  .card:nth-child(5){animation-delay:.33s;}
+  @keyframes cardIn{
+    from{opacity:0; transform:translateY(18px) rotateX(-8deg);}
+    to{opacity:1; transform:translateY(0) rotateX(0);}
+  }
+  .card:hover{
+    box-shadow:
+      0 1px 0 var(--glow) inset,
+      0 20px 32px -14px var(--shadow-ink),
+      0 4px 8px var(--shadow-ink2);
+  }
+  .card-tag{
+    position:absolute;
+    top:-10px;
+    left:16px;
+    background:var(--ink);
+    color:var(--paper-card);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:.09em;
+    text-transform:uppercase;
+    padding:4px 9px;
+    border-radius:2px;
+    transform:rotate(-1.5deg);
+    box-shadow:0 3px 6px rgba(30,42,34,.35);
+  }
+  .card p{font-size:14px;line-height:1.6;margin:6px 0 0;color:var(--ink);}
+  .card ul{margin:8px 0 0;padding-left:18px;}
+  .card li{font-size:14px;line-height:1.55;margin-bottom:6px;color:var(--ink);}
+  .card.full{grid-column:1/-1;}
+
+  .terms{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+  .term{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    background:var(--teal-soft);
+    color:var(--teal);
+    padding:5px 10px;
+    border-radius:20px;
+    box-shadow:0 2px 4px rgba(51,99,92,.25);
+  }
+  .terms-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-bottom:2px;
+  }
+
+  .loading-row{
+    display:none;
+    flex-direction:column;
+    gap:10px;
+    margin-top:16px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+  .loading-line{display:flex; align-items:center; gap:12px;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--stamp);animation:pulse 1s infinite ease-in-out;}
+  .dot:nth-child(2){animation-delay:.2s;}
+  .dot:nth-child(3){animation-delay:.4s;}
+  @keyframes pulse{0%,100%{opacity:.25;}50%{opacity:1;}}
+
+  .progress-track{
+    width:100%;
+    height:6px;
+    border-radius:4px;
+    background:var(--teal-soft);
+    overflow:hidden;
+    box-shadow:inset 0 1px 3px var(--shadow-ink2);
+  }
+  .progress-fill{
+    height:100%;
+    width:6%;
+    border-radius:4px;
+    background:linear-gradient(90deg, var(--teal), var(--stamp-soft));
+    background-size:200% 100%;
+    animation:progressShimmer 1.6s linear infinite;
+    transition:width .5s cubic-bezier(.4,.1,.2,1);
+  }
+  @keyframes progressShimmer{
+    0%{background-position:0% 0;}
+    100%{background-position:200% 0;}
+  }
+
+  /* ---- result actions ---- */
+  .r-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .r-btn{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:.04em;
+    padding:8px 12px;
+    background:var(--paper-card);
+    border:1px solid var(--rule);
+    border-radius:3px;
+    color:var(--ink);
+    cursor:pointer;
+    box-shadow:0 2px 4px var(--shadow-ink2);
+    transition:transform .12s ease, box-shadow .12s ease, background .2s ease;
+  }
+  .r-btn:hover{transform:translateY(-2px); box-shadow:0 6px 10px -4px var(--shadow-ink); border-color:var(--teal); color:var(--teal);}
+  .r-btn:active{transform:translateY(0);}
+  .r-btn.copied{background:var(--teal); color:var(--paper-card); border-color:var(--teal);}
+
+  .fade-in{animation:fadeIn .5s ease both;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+  footer{
+    margin-top:64px;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    border-top:1px solid var(--rule);
+    padding-top:16px;
+  }
+
+  @media(max-width:600px){
+    h1{font-size:32px;}
+    .r-title{font-size:22px;}
+    .stamp{width:72px;height:72px;font-size:10px;}
+  }
+
+  @media print{
+    .lamp-toggle, .scraps, .intake-holder, .shelf-section, .eyebrow, h1, .sub, .r-actions, footer{display:none !important;}
+    .app{padding:0; background:#fff;}
+    .card, .stamp, .ticket{box-shadow:none !important; transform:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="app" id="appRoot">
+  <div class="scraps" id="scraps"></div>
+
+  <div class="lamp-toggle">
+    <span class="lamp-label" id="lampLabel">day</span>
+    <div class="lamp-switch" id="lampSwitch" role="button" aria-label="Toggle night reading mode">
+      <div class="lamp-knob"></div>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <div class="eyebrow">reading room &middot; ai digests</div>
+    <h1>Read the paper in five minutes, not <em>five hours</em>.</h1>
+    <p class="sub">Paste a paper's text or upload a file &mdash; any length. Get the abstract, methodology, findings and conclusion pulled out in plain language, plus the terms worth knowing.</p>
+
+    <div class="intake-holder">
+    <div class="intake" id="intakeCard">
+      <div class="tabs">
+        <button class="tab active" id="tabPaste">Paste text</button>
+        <button class="tab" id="tabUpload">Upload file</button>
+      </div>
+
+      <textarea id="pasteArea" placeholder="Paste the paper's abstract, sections, or full text here&#8230; no length limit."></textarea>
+
+      <div class="dropzone" id="dropzone">
+        <div>Drop a .pdf or .txt file here, or <strong>choose a file</strong>.</div>
+        <div style="font-size:12px;">Any length &mdash; the whole paper is read, in sections if needed. Text is extracted in your browser before it's sent for digesting.</div>
+        <input type="file" id="fileInput" accept=".pdf,.txt" style="display:none;">
+        <div class="filename" id="filename"></div>
+      </div>
+
+      <div class="intake-foot">
+        <span class="count" id="charCount">0 characters ready<span class="count-note" id="countNote" style="display:none;"></span></span>
+        <button class="digest-btn" id="digestBtn" title="Ctrl / Cmd + Enter">Digest this paper</button>
+      </div>
+      <div class="loading-row" id="loadingRow">
+        <div class="loading-line"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span id="loadingText">Reading the paper&#8230;</span></div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+      <div class="error-msg" id="errorMsg" style="display:none;"></div>
+
+      <div class="key-row" id="keyRow">
+        <label for="apiKeyInput">Groq API key</label>
+        <input type="password" id="apiKeyInput" placeholder="gsk_&#8230;" autocomplete="off">
+        <span class="key-hint">Stored only in this browser, never sent anywhere but Groq. Get a free key at <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>.</span>
+      </div>
+
+      <div class="key-row" id="keyRow2">
+        <label for="apiKeyInput2">Backup Groq API key (optional)</label>
+        <input type="password" id="apiKeyInput2" placeholder="gsk_&#8230; from a DIFFERENT Groq account" autocomplete="off">
+        <span class="key-hint">Only speeds things up if it's from a separate Groq account — Groq's rate limit is shared per account, not per key. Leave blank if you don't have one.</span>
+      </div>
+    </div>
+    </div>
+
+    <div class="shelf-section">
+      <div class="shelf-title">recent digests</div>
+      <div class="shelf" id="shelf"></div>
+    </div>
+
+    <div class="results" id="results">
+      <div class="r-head">
+        <div>
+          <div class="r-field" id="rField">&mdash;</div>
+          <div class="r-title" id="rTitle">&mdash;</div>
+        </div>
+        <div class="stamps" id="stamps"></div>
+      </div>
+
+      <div class="r-actions">
+        <button class="r-btn" id="copyBtn">Copy digest</button>
+        <button class="r-btn" id="downloadBtn">Download .md</button>
+        <button class="r-btn" id="printBtn">Print</button>
+      </div>
+
+      <div class="plain-summary-wrap">
+        <span class="plain-summary" id="plainSummary"></span>
+      </div>
+
+      <div class="cards" id="cards"></div>
+
+      <div>
+        <div class="terms-label">key terms worth knowing</div>
+        <div class="terms" id="terms"></div>
+      </div>
+    </div>
+
+    <footer>Digests are generated by AI (via Groq) from the text you provide. Skim the original paper before citing anything from a digest.</footer>
+  </div>
+</div>
+
+<script>
+(function(){
+  if (window['pdfjsLib']) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  // ---- Groq configuration ----
+  const GROQ_API_KEY = ""; // no key baked in — each visitor enters their own free Groq key in the box below
+  const GROQ_API_KEY_2 = ""; // optional backup key box, only helps if it's from a different Groq account
+  const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+  const FINAL_MODEL = "llama-3.3-70b-versatile";   // higher-quality model for the final structured digest
+  const CHUNK_MODEL = "llama-3.1-8b-instant";       // fast model for condensing long papers section by section
+
+  // A paper under this size is sent to the model directly. Anything longer is
+  // split into sections, each condensed, then combined for the final digest -
+  // so there's no real ceiling on how long a paper can be.
+  const DIRECT_LIMIT = 20000;
+  const CHUNK_SIZE = 9000;
+
+  const tabPaste = document.getElementById('tabPaste');
+  const tabUpload = document.getElementById('tabUpload');
+  const pasteArea = document.getElementById('pasteArea');
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const filenameEl = document.getElementById('filename');
+  const charCount = document.getElementById('charCount');
+  const countNote = document.getElementById('countNote');
+  const digestBtn = document.getElementById('digestBtn');
+  const loadingRow = document.getElementById('loadingRow');
+  const loadingText = document.getElementById('loadingText');
+  const errorMsg = document.getElementById('errorMsg');
+  const results = document.getElementById('results');
+  const shelfEl = document.getElementById('shelf');
+  const keyRow = document.getElementById('keyRow');
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  const keyRow2 = document.getElementById('keyRow2');
+  const apiKeyInput2 = document.getElementById('apiKeyInput2');
+  const appRoot = document.getElementById('appRoot');
+  const scrapsEl = document.getElementById('scraps');
+  const lampSwitch = document.getElementById('lampSwitch');
+  const lampLabel = document.getElementById('lampLabel');
+  const intakeCard = document.getElementById('intakeCard');
+  const progressFill = document.getElementById('progressFill');
+  const copyBtn = document.getElementById('copyBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const printBtn = document.getElementById('printBtn');
+
+  let currentText = '';
+  let mode = 'paste';
+  let lastDigest = null;
+  let lastSourceText = '';
+
+  // ---- night reading mode ----
+  function applyTheme(theme){
+    if(theme === 'night'){
+      appRoot.setAttribute('data-theme','night');
+      lampLabel.textContent = 'night';
+    } else {
+      appRoot.removeAttribute('data-theme');
+      lampLabel.textContent = 'day';
+    }
+  }
+  applyTheme(localStorage.getItem('digestTheme') || 'day');
+  lampSwitch.addEventListener('click', ()=>{
+    const next = appRoot.getAttribute('data-theme') === 'night' ? 'day' : 'night';
+    applyTheme(next);
+    localStorage.setItem('digestTheme', next);
+  });
+
+  // ---- ambient desk scraps: a few torn-paper shapes with mouse parallax ----
+  const scrapDefs = [
+    {top:'8%',  left:'4%',  w:46, rot:-18, depth:1.0},
+    {top:'62%', left:'2%',  w:34, rot:12,  depth:0.6},
+    {top:'20%', right:'5%', w:40, rot:22,  depth:0.8},
+    {top:'75%', right:'8%', w:30, rot:-10, depth:0.5}
+  ];
+  scrapDefs.forEach((s, i)=>{
+    const holder = document.createElement('div');
+    holder.className = 'scrap';
+    holder.style.top = s.top || '';
+    holder.style.left = s.left || '';
+    holder.style.right = s.right || '';
+    holder.dataset.depth = s.depth;
+    holder.dataset.rot = s.rot;
+    holder.style.transform = 'rotate3d(0,0,1,' + s.rot + 'deg)';
+    holder.innerHTML = '<svg width="'+s.w+'" height="'+(s.w*1.3)+'" viewBox="0 0 40 52"><path d="M2 4 L30 2 L38 16 L36 48 L4 50 L2 20 Z" fill="var(--paper-card)" stroke="var(--rule)" stroke-width="1.5"/><line x1="9" y1="14" x2="30" y2="12" stroke="var(--rule)" stroke-width="1.2"/><line x1="9" y1="22" x2="31" y2="21" stroke="var(--rule)" stroke-width="1.2"/><line x1="9" y1="30" x2="26" y2="29" stroke="var(--rule)" stroke-width="1.2"/></svg>';
+    scrapsEl.appendChild(holder);
+  });
+  window.addEventListener('mousemove', (e)=>{
+    const cx = (e.clientX / window.innerWidth - 0.5);
+    const cy = (e.clientY / window.innerHeight - 0.5);
+    document.querySelectorAll('.scrap').forEach(el=>{
+      const depth = parseFloat(el.dataset.depth);
+      const rot = parseFloat(el.dataset.rot);
+      const tx = cx * -18 * depth;
+      const ty = cy * -14 * depth;
+      el.style.transform = 'translate3d('+tx+'px,'+ty+'px,0) rotate3d(0,0,1,'+rot+'deg)';
+    });
+  });
+
+  // ---- generic 3d tilt-on-hover for paper-like elements ----
+  function enableTilt(el, strength){
+    strength = strength || 10;
+    el.addEventListener('mousemove', (e)=>{
+      const r = el.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width - 0.5;
+      const py = (e.clientY - r.top) / r.height - 0.5;
+      el.style.transform = 'perspective(900px) rotateX(' + (-py*strength) + 'deg) rotateY(' + (px*strength) + 'deg) translateZ(4px)';
+    });
+    el.addEventListener('mouseleave', ()=>{
+      el.style.transform = '';
+    });
+  }
+  enableTilt(intakeCard, 4);
+  intakeCard.addEventListener('mouseenter', ()=>intakeCard.classList.add('lifted'));
+  intakeCard.addEventListener('mouseleave', ()=>intakeCard.classList.remove('lifted'));
+  function tiltAll(selector, strength){
+    document.querySelectorAll(selector).forEach(el=>enableTilt(el, strength));
+  }
+
+  // ---- API key handling ----
+  if(!GROQ_API_KEY){
+    keyRow.style.display = 'flex';
+    apiKeyInput.value = localStorage.getItem('groqApiKey') || '';
+    apiKeyInput.addEventListener('input', ()=>{
+      localStorage.setItem('groqApiKey', apiKeyInput.value.trim());
+    });
+  }
+  if(!GROQ_API_KEY_2){
+    keyRow2.style.display = 'flex';
+    apiKeyInput2.value = localStorage.getItem('groqApiKey2') || '';
+    apiKeyInput2.addEventListener('input', ()=>{
+      localStorage.setItem('groqApiKey2', apiKeyInput2.value.trim());
+    });
+  }
+  function getApiKeys(){
+    const keys = [
+      GROQ_API_KEY || localStorage.getItem('groqApiKey') || '',
+      GROQ_API_KEY_2 || localStorage.getItem('groqApiKey2') || ''
+    ].map(k=>k.trim()).filter(Boolean);
+    // de-duplicate in case the same key was pasted into both fields
+    return [...new Set(keys)];
+  }
+  let keyRoundRobin = 0;
+
+  function setMode(next){
+    mode = next;
+    tabPaste.classList.toggle('active', mode==='paste');
+    tabUpload.classList.toggle('active', mode==='upload');
+    pasteArea.style.display = mode==='paste' ? 'block' : 'none';
+    dropzone.style.display = mode==='upload' ? 'flex' : 'none';
+  }
+  tabPaste.addEventListener('click', ()=>setMode('paste'));
+  tabUpload.addEventListener('click', ()=>setMode('upload'));
+
+  pasteArea.addEventListener('input', ()=>{
+    currentText = pasteArea.value;
+    updateCount();
+  });
+
+  function updateCount(){
+    const n = currentText.trim().length;
+    charCount.firstChild.textContent = n.toLocaleString() + ' characters ready';
+    if(n > DIRECT_LIMIT){
+      countNote.style.display = 'block';
+      countNote.textContent = "Long paper — it'll be read section by section for a thorough digest.";
+    } else {
+      countNote.style.display = 'none';
+    }
+  }
+
+  dropzone.addEventListener('click', ()=>fileInput.click());
+  dropzone.addEventListener('dragover', e=>{e.preventDefault(); dropzone.classList.add('drag');});
+  dropzone.addEventListener('dragleave', ()=>dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', e=>{
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e=>{
+    if(e.target.files.length) handleFile(e.target.files[0]);
+  });
+
+  async function handleFile(file){
+    filenameEl.textContent = 'Reading ' + file.name + '...';
+    try{
+      let text = '';
+      if(file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')){
+        text = await extractPdfText(file);
+      } else {
+        text = await file.text();
+      }
+      currentText = text;
+      updateCount();
+      filenameEl.textContent = file.name + ' — ' + text.trim().length.toLocaleString() + ' characters extracted';
+    }catch(err){
+      filenameEl.textContent = '';
+      showError("Couldn't read that file. Try pasting the text instead.");
+    }
+  }
+
+  async function extractPdfText(file){
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+    let out = [];
+    const maxPages = Math.min(pdf.numPages, 600); // generous cap just to keep the browser responsive on truly extreme files
+    for(let i=1; i<=maxPages; i++){
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const strings = content.items.map(it=>it.str);
+      out.push(strings.join(' '));
+    }
+    return out.join('\n\n');
+  }
+
+  function showError(msg){
+    errorMsg.textContent = msg;
+    errorMsg.style.display = 'block';
+  }
+  function clearError(){ errorMsg.style.display = 'none'; }
+
+  digestBtn.addEventListener('click', runDigest);
+
+  async function runDigest(){
+    clearError();
+    const text = currentText.trim();
+    if(text.length < 200){
+      showError('Add more of the paper — at least a full abstract — so there is enough to work with.');
+      return;
+    }
+    if(!getApiKeys().length){
+      showError('Add your Groq API key above first (it only needs to be entered once).');
+      return;
+    }
+    digestBtn.disabled = true;
+    loadingRow.style.display = 'flex';
+    results.style.display = 'none';
+    loadingText.textContent = 'Reading the paper…';
+    progressFill.style.width = '4%';
+
+    // Rough progress estimate parsed straight out of the progress messages,
+    // just to give the gauge something honest to move toward.
+    const willChunk = text.length > DIRECT_LIMIT;
+    function updateProgress(msg){
+      loadingText.textContent = msg;
+      let pct = null;
+      const secMatch = msg.match(/section (\d+) of (\d+)/i);
+      if(secMatch){
+        const [,i,total] = secMatch;
+        pct = 5 + (parseInt(i)/parseInt(total)) * (willChunk ? 55 : 90);
+      } else if(/combining sections/i.test(msg)){
+        pct = 70;
+      } else if(/writing the digest/i.test(msg)){
+        pct = 90;
+      } else if(/rate.?limit|busy/i.test(msg)){
+        pct = null; // hold position while waiting out a retry
+      }
+      if(pct !== null) progressFill.style.width = Math.min(96, pct) + '%';
+    }
+
+    try{
+      const digest = await callDigestApi(text, updateProgress);
+      progressFill.style.width = '100%';
+      renderResults(digest, text);
+      lastDigest = digest;
+      await saveToShelf(digest);
+      await loadShelf();
+    }catch(err){
+      console.error('Digest failed:', err);
+      showError(err && err.message ? err.message : "Couldn't build a digest from that text. Try a longer excerpt, or paste the abstract and a few key paragraphs.");
+    }finally{
+      loadingRow.style.display = 'none';
+      digestBtn.disabled = false;
+    }
+  }
+
+  // Ctrl/Cmd+Enter submits from the textarea
+  pasteArea.addEventListener('keydown', (e)=>{
+    if((e.ctrlKey || e.metaKey) && e.key === 'Enter') runDigest();
+  });
+
+  function sleep(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
+
+  // Wraps callGroq with round-robin across available keys plus retry/backoff.
+  // Groq's free tier has a limited tokens-per-minute budget per ORGANIZATION
+  // (not per key), so a second key only helps if it's from a different Groq
+  // account. When a key gets rate-limited, this immediately tries the next
+  // available key; only once every key has been tried in a round does it
+  // wait out the exact time Groq reports before retrying.
+  async function callGroqWithRetry(messages, model, maxTokens, temperature, onProgress){
+    const keys = getApiKeys();
+    if(!keys.length) throw new Error('Add at least one Groq API key above first.');
+    const maxRounds = 8;
+    for(let round = 0; round < maxRounds; round++){
+      let lastErr;
+      for(let k = 0; k < keys.length; k++){
+        const key = keys[(keyRoundRobin + k) % keys.length];
+        try{
+          const result = await callGroq(messages, model, maxTokens, temperature, key);
+          keyRoundRobin++; // spread the next call to a different key
+          return result;
+        }catch(err){
+          const msg = (err && err.message) || '';
+          const isRateLimit = /rate limit/i.test(msg) || /\b429\b/.test(msg);
+          if(!isRateLimit) throw err;
+          lastErr = err;
+          if(k < keys.length - 1){
+            onProgress && onProgress('Key busy — switching to the backup key…');
+          }
+        }
+      }
+      let waitSec = 8;
+      const m = lastErr && lastErr.message && lastErr.message.match(/try again in ([\d.]+)s/i);
+      if(m) waitSec = parseFloat(m[1]) + 1;
+      onProgress && onProgress((keys.length > 1 ? 'Both keys rate-limited' : 'Groq rate limit reached') + ' — waiting ' + Math.ceil(waitSec) + 's before continuing…');
+      await sleep(waitSec * 1000);
+    }
+    throw new Error('Groq rate limit persists after several retries. Wait a minute and try again.');
+  }
+
+  // Generic call to Groq's OpenAI-compatible chat completions endpoint.
+  async function callGroq(messages, model, maxTokens, temperature, key){
+    if(!key) throw new Error('Add your Groq API key above first.');
+    const response = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + key
+      },
+      body: JSON.stringify({
+        model: model,
+        max_tokens: maxTokens || 1000,
+        temperature: (typeof temperature === 'number') ? temperature : 0.3,
+        messages: messages
+      })
+    });
+    const data = await response.json();
+    if(!response.ok || data.error){
+      const detail = (data.error && data.error.message) ? data.error.message : ('HTTP ' + response.status);
+      throw new Error('Groq API error: ' + detail);
+    }
+    const choice = data.choices && data.choices[0];
+    const msg = choice && choice.message && choice.message.content;
+    if(!msg) throw new Error('Empty response from Groq');
+    return msg;
+  }
+
+  // Condenses one slice of a long paper into a dense factual summary.
+  async function summarizeChunk(chunk, idx, total, onProgress){
+    const sys = "You are helping condense one section of a long research paper so it can later be combined with the other sections into a full digest. Read the excerpt and write a dense, factual summary (120-180 words) in plain language, capturing any claims, numbers, methods, or findings present. Do not add commentary, and do not mention that this is a section or excerpt — just the summary itself.";
+    const user = "Section " + idx + " of " + total + " of the paper follows:\n\n---\n" + chunk;
+    const out = await callGroqWithRetry(
+      [{role:"system", content: sys}, {role:"user", content: user}],
+      CHUNK_MODEL, 300, 0.2, onProgress
+    );
+    return out.trim();
+  }
+
+  // Recursively condenses a pile of section summaries until it fits comfortably
+  // in one final call - this is what makes arbitrarily long papers work.
+  async function condenseSummaries(combined, onProgress){
+    let level = combined;
+    let pass = 1;
+    while(level.length > DIRECT_LIMIT){
+      onProgress && onProgress('Combining sections into an overview (pass ' + pass + ')…');
+      const groups = [];
+      for(let i=0; i<level.length; i+=CHUNK_SIZE) groups.push(level.slice(i, i+CHUNK_SIZE));
+      const merged = [];
+      for(const g of groups){
+        const sys = "Combine these section summaries from one research paper into a single, denser summary (200-250 words) in plain language, preserving the key claims, numbers, and findings. No commentary.";
+        const out = await callGroqWithRetry(
+          [{role:"system", content: sys}, {role:"user", content: g}],
+          CHUNK_MODEL, 500, 0.2, onProgress
+        );
+        merged.push(out.trim());
+      }
+      level = merged.join('\n\n');
+      pass++;
+    }
+    return level;
+  }
+
+  async function callDigestApi(text, onProgress){
+    let sourceForFinal = text;
+
+    if(text.length > DIRECT_LIMIT){
+      const chunks = [];
+      for(let i=0; i<text.length; i+=CHUNK_SIZE) chunks.push(text.slice(i, i+CHUNK_SIZE));
+      const summaries = [];
+      for(let i=0; i<chunks.length; i++){
+        onProgress && onProgress('Reading section ' + (i+1) + ' of ' + chunks.length + '…');
+        const summary = await summarizeChunk(chunks[i], i+1, chunks.length, onProgress);
+        summaries.push('[Section ' + (i+1) + ']\n' + summary);
+        if(i < chunks.length - 1) await sleep(2500); // small pacing gap to avoid tripping the rate limit in the first place
+      }
+      sourceForFinal = summaries.join('\n\n');
+      if(sourceForFinal.length > DIRECT_LIMIT){
+        sourceForFinal = await condenseSummaries(sourceForFinal, onProgress);
+      }
+    }
+
+    onProgress && onProgress('Writing the digest…');
+
+    const system = "You are an expert research analyst who reads academic papers and produces a structured digest for a busy reader. Respond with ONLY a single JSON object, no markdown fences, no preamble, no commentary. Use exactly these keys: title (string), field (short string, the paper's academic field), plainSummary (2-3 plain, jargon-free sentences a newcomer would understand), abstract (string, about 60 words, in your own words), methodology (string, about 60-90 words, plain language), findings (array of 3 to 5 short strings, the concrete results), limitations (string, about 40 words, or an empty string if none are evident from the text), conclusion (string, about 50 words), keyTerms (array of 3 to 6 short strings, technical terms worth knowing). Base every field only on the supplied material, which may be the paper's own text or a set of condensed section summaries of it. If a field isn't clear from the material, give your best reasonable inference rather than inventing specific numbers or claims.";
+
+    const textOut = await callGroqWithRetry(
+      [
+        {role: "system", content: system},
+        {role: "user", content: "Paper material follows. Produce the JSON digest now.\n\n---\n" + sourceForFinal}
+      ],
+      FINAL_MODEL, 1200, 0.3, onProgress
+    );
+
+    let cleaned = textOut.replace(/```json|```/g,'').trim();
+
+    // Be tolerant of any stray text the model adds outside the JSON object
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if(firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace){
+      cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+    }
+
+    let parsed;
+    try{
+      parsed = JSON.parse(cleaned);
+    }catch(parseErr){
+      console.error('Digest JSON parse failed. Raw model output:', textOut);
+      throw new Error('Could not parse digest JSON: ' + parseErr.message);
+    }
+
+    parsed._sourceWordCount = text.split(/\s+/).filter(Boolean).length;
+    return parsed;
+  }
+
+  function estimateMinutes(wordCount){
+    return Math.max(1, Math.round(wordCount/200));
+  }
+
+  function renderResults(d, sourceText){
+    lastDigest = d;
+    lastSourceText = sourceText;
+    document.getElementById('rField').textContent = d.field || 'research paper';
+    document.getElementById('rTitle').textContent = d.title || 'Untitled paper';
+    document.getElementById('plainSummary').textContent = d.plainSummary || '';
+
+    const originalWords = sourceText.split(/\s+/).filter(Boolean).length;
+    const digestWords = [d.abstract, d.methodology, (d.findings||[]).join(' '), d.limitations, d.conclusion].join(' ').split(/\s+/).filter(Boolean).length;
+    const beforeMin = estimateMinutes(originalWords);
+    const afterMin = estimateMinutes(digestWords);
+
+    const stampsEl = document.getElementById('stamps');
+    stampsEl.innerHTML = '';
+    stampsEl.appendChild(makeStamp(beforeMin + ' min', 'was'));
+    stampsEl.appendChild(makeStamp(afterMin + ' min', 'now'));
+    stampsEl.appendChild(makeStamp(todayStamp(), 'digested'));
+
+    const cardsEl = document.getElementById('cards');
+    cardsEl.innerHTML = '';
+    cardsEl.appendChild(makeCard('abstract', `<p>${escapeHtml(d.abstract||'')}</p>`));
+    cardsEl.appendChild(makeCard('methodology', `<p>${escapeHtml(d.methodology||'')}</p>`));
+    const findingsHtml = '<ul>' + (d.findings||[]).map(f=>'<li>'+escapeHtml(f)+'</li>').join('') + '</ul>';
+    cardsEl.appendChild(makeCard('findings', findingsHtml, true));
+    if(d.limitations && d.limitations.trim()){
+      cardsEl.appendChild(makeCard('limitations', `<p>${escapeHtml(d.limitations)}</p>`));
+    }
+    cardsEl.appendChild(makeCard('conclusion', `<p>${escapeHtml(d.conclusion||'')}</p>`));
+
+    const termsEl = document.getElementById('terms');
+    termsEl.innerHTML = '';
+    (d.keyTerms||[]).forEach(t=>{
+      const span = document.createElement('span');
+      span.className = 'term';
+      span.textContent = t;
+      termsEl.appendChild(span);
+    });
+
+    results.style.display = 'block';
+    results.classList.remove('fade-in');
+    void results.offsetWidth;
+    results.classList.add('fade-in');
+    results.scrollIntoView({behavior:'smooth', block:'start'});
+    tiltAll('.card', 6);
+    tiltAll('.stamp', 14);
+  }
+
+  function makeStamp(big, small){
+    const div = document.createElement('div');
+    div.className = 'stamp';
+    div.innerHTML = '<span class="big">'+escapeHtml(String(big))+'</span><span>'+escapeHtml(small)+'</span>';
+    return div;
+  }
+
+  function makeCard(tag, innerHtml, full){
+    const div = document.createElement('div');
+    div.className = 'card' + (full ? ' full' : '');
+    div.innerHTML = '<div class="card-tag">'+tag+'</div>'+innerHtml;
+    return div;
+  }
+
+  function todayStamp(){
+    const d = new Date();
+    const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    return months[d.getMonth()] + ' ' + d.getDate();
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // Shelf is stored in the browser's localStorage (this is a standalone file,
+  // not a Claude artifact, so there's no server-side storage to call).
+  async function saveToShelf(d){
+    try{
+      const key = 'digest:' + Date.now();
+      const list = JSON.parse(localStorage.getItem('digestKeys') || '[]');
+      list.push(key);
+      localStorage.setItem('digestKeys', JSON.stringify(list));
+      localStorage.setItem(key, JSON.stringify({
+        title: d.title || 'Untitled paper',
+        field: d.field || 'research paper',
+        digest: d
+      }));
+    }catch(e){ /* shelf is a convenience, ignore failures */ }
+  }
+
+  async function loadShelf(){
+    shelfEl.innerHTML = '';
+    try{
+      const list = JSON.parse(localStorage.getItem('digestKeys') || '[]');
+      const keys = list.slice().sort().reverse().slice(0,8);
+      if(keys.length === 0){
+        shelfEl.innerHTML = '<div class="shelf-empty">Digests you create will show up here.</div>';
+        return;
+      }
+      for(const key of keys){
+        try{
+          const raw = localStorage.getItem(key);
+          if(!raw) continue;
+          const parsed = JSON.parse(raw);
+          const ticket = document.createElement('div');
+          ticket.className = 'ticket';
+          ticket.innerHTML = '<div class="t-field">'+escapeHtml(parsed.field||'')+'</div><div class="t-title">'+escapeHtml(parsed.title||'')+'</div><div class="ticket-close" title="Remove from shelf">&times;</div>';
+          ticket.addEventListener('click', ()=>{
+            renderResults(parsed.digest, ' '.repeat((parsed.digest._sourceWordCount||400)*6));
+          });
+          ticket.querySelector('.ticket-close').addEventListener('click', (e)=>{
+            e.stopPropagation();
+            removeFromShelf(key, ticket);
+          });
+          shelfEl.appendChild(ticket);
+        }catch(e){ /* skip unreadable entry */ }
+      }
+      tiltAll('.ticket', 8);
+    }catch(e){
+      shelfEl.innerHTML = '<div class="shelf-empty">Digests you create will show up here.</div>';
+    }
+  }
+
+  function removeFromShelf(key, ticketEl){
+    ticketEl.classList.add('removing');
+    setTimeout(()=>{
+      try{
+        const list = JSON.parse(localStorage.getItem('digestKeys') || '[]').filter(k=>k!==key);
+        localStorage.setItem('digestKeys', JSON.stringify(list));
+        localStorage.removeItem(key);
+      }catch(e){ /* ignore */ }
+      loadShelf();
+    }, 220);
+  }
+
+  function digestToMarkdown(d){
+    const lines = [];
+    lines.push('# ' + (d.title || 'Untitled paper'));
+    lines.push('_' + (d.field || 'research paper') + '_');
+    lines.push('');
+    if(d.plainSummary) lines.push('> ' + d.plainSummary, '');
+    lines.push('## Abstract', d.abstract || '', '');
+    lines.push('## Methodology', d.methodology || '', '');
+    lines.push('## Findings');
+    (d.findings||[]).forEach(f=>lines.push('- ' + f));
+    lines.push('');
+    if(d.limitations && d.limitations.trim()){
+      lines.push('## Limitations', d.limitations, '');
+    }
+    lines.push('## Conclusion', d.conclusion || '', '');
+    if((d.keyTerms||[]).length){
+      lines.push('## Key terms', (d.keyTerms||[]).join(', '));
+    }
+    return lines.join('\n');
+  }
+
+  copyBtn.addEventListener('click', async ()=>{
+    if(!lastDigest) return;
+    try{
+      await navigator.clipboard.writeText(digestToMarkdown(lastDigest));
+      copyBtn.textContent = 'Copied ✓';
+      copyBtn.classList.add('copied');
+      setTimeout(()=>{ copyBtn.textContent = 'Copy digest'; copyBtn.classList.remove('copied'); }, 1600);
+    }catch(e){
+      showError("Couldn't copy — your browser may be blocking clipboard access.");
+    }
+  });
+
+  downloadBtn.addEventListener('click', ()=>{
+    if(!lastDigest) return;
+    const md = digestToMarkdown(lastDigest);
+    const blob = new Blob([md], {type:'text/markdown'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const safeName = (lastDigest.title || 'digest').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'').slice(0,60) || 'digest';
+    a.href = url;
+    a.download = safeName + '.md';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  printBtn.addEventListener('click', ()=>window.print());
+
+  setMode('paste');
+  updateCount();
+  loadShelf();
+})();
+</script>
+</body>
+</html>
